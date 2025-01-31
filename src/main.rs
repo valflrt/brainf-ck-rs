@@ -5,7 +5,7 @@ use colored::Colorize;
 fn main() {
     const PROGRAM: &str = include_str!("e.b");
     const MEMORY_CAPACITY: usize = 65536;
-    const STEP_LIMIT: Option<usize> = Some(2_000_000);
+    const OPERATION_LIMIT: Option<usize> = Some(10000000000);
     const PRINT_STEPS: bool = false;
 
     const ALLOWED_CHARS: &[char] = &['<', '>', '+', '-', '.', ',', '[', ']'];
@@ -34,7 +34,9 @@ fn main() {
 
     let start = Instant::now();
     while op_list.pos < op_list.ops.len()
-        && STEP_LIMIT.map(|limit| total_ops < limit).unwrap_or(true)
+        && OPERATION_LIMIT
+            .map(|limit| total_ops < limit)
+            .unwrap_or(true)
     {
         if PRINT_STEPS {
             op_list.display();
