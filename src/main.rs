@@ -5,7 +5,7 @@ use colored::Colorize;
 fn main() {
     const PROGRAM: &str = include_str!("e.b");
     const MEMORY_CAPACITY: usize = 65536;
-    const OPERATION_LIMIT: Option<usize> = Some(10000000000);
+    const OPERATION_LIMIT: Option<usize> = Some(2_000_000);
     const PRINT_STEPS: bool = false;
 
     const ALLOWED_CHARS: &[char] = &['<', '>', '+', '-', '.', ',', '[', ']'];
