@@ -3,6 +3,7 @@ name = "brainf-ck-rs"
 description = "A brainfuck interpreter with a visualizer."
 version = "0.1.0"
 authors = ["valflrt"]
+repository = "https://github.com/valflrt/brainf-ck-rs"
 license = "MIT"
 edition = "2021"
 
