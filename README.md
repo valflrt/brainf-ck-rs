@@ -38,6 +38,6 @@ Here is a preview of what the visualizer looks like:
 
 ![verbose_slow](./img/verbose.gif)
 
-You can even make it slower to see what operations are made and the position of the pointer in the memory:
+You can even make it slower to see what operations are performed and the position of the pointer in the memory:
 
 ![verbose_slow](./img/verbose_slow.gif)
