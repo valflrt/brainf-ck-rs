@@ -7,7 +7,7 @@ Usage: brainf-ck-rs [program_path] <operation_limit> <mode>
 
 [program path] (string): the path of the program to execute
 <operation_limit> (int): the maximum number of operations (infinite if not set)
-<mode> (\"verbose\" | \"verbose_slow\"): the execution mode (normal if not set)
+<mode> ("verbose" | "verbose_slow"): the execution mode (normal if not set)
 
 Examples:
     brainf-ck-rs helloworld.b 1000
