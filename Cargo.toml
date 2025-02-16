@@ -1,6 +1,7 @@
 [package]
 name = "brainf-ck-rs"
 version = "0.1.0"
+authors = ["valflrt"]
 edition = "2021"
 
 [dependencies]

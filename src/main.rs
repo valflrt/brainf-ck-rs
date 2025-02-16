@@ -1,123 +1,160 @@
-use std::{fmt::Write, io::stdin, time::Instant};
+use std::{
+    fmt::Write,
+    fs,
+    io::stdin,
+    process::exit,
+    thread,
+    time::{Duration, Instant},
+};
 
 use colored::Colorize;
 
 fn main() {
-    const PROGRAM: &str = include_str!("e.b");
-    const MEMORY_CAPACITY: usize = 65536;
-    const OPERATION_LIMIT: Option<usize> = Some(2_000_000);
-    const PRINT_STEPS: bool = false;
+    const USAGE: &str = "Usage: brainf-ck-rs [program_path] <operation_limit> <mode>
 
-    const ALLOWED_CHARS: &[char] = &['<', '>', '+', '-', '.', ',', '[', ']'];
-    let program = PROGRAM
-        .to_string()
-        .lines()
-        .filter(|line| !line.starts_with("//"))
-        .flat_map(|line| line.chars())
-        .filter(|c| ALLOWED_CHARS.contains(c))
-        .collect::<String>();
+[program path] (string): the path of the program to execute
+<operation_limit> (int): the maximum number of operations (infinite if not set)
+<mode> (\"verbose\" | \"verbose_slow\"): the execution mode (default mode if not set)
 
-    let mut op_list = OpList::new(&program);
-    let mut mem = Memory::<MEMORY_CAPACITY>::new();
+Examples:
+    brainf-ck-rs helloworld.b 1000
+    brainf-ck-rs e.b 100000 verbose_slow";
 
-    let mut total_ops = 0;
+    let args = std::env::args().collect::<Vec<_>>();
 
-    let mut input = if program.contains(',') {
-        let mut input = String::new();
-        let _ = stdin().read_line(&mut input);
-        input.chars().rev().collect::<String>()
-    } else {
-        String::new()
-    };
-
-    let mut output = String::new();
-
-    let start = Instant::now();
-    while op_list.pos < op_list.ops.len()
-        && OPERATION_LIMIT
-            .map(|limit| total_ops < limit)
-            .unwrap_or(true)
-    {
-        if PRINT_STEPS {
-            op_list.display();
-            mem.display();
-        }
-
-        let op = op_list.get();
-        match op {
-            Op::Left => mem.left(),
-            Op::Right => mem.right(),
-            Op::Incr => mem.incr(),
-            Op::Decr => mem.decr(),
-            Op::Out => {
-                output.push(mem.read() as char);
-                if PRINT_STEPS {
-                    println!("{}", mem.read());
-                    println!("out: {}", output)
-                }
+    if let Some(path) = args.get(1) {
+        let program = fs::read_to_string(path).expect("Failed to read program file");
+        let operation_limit = args.get(2).map(|s| {
+            s.parse::<usize>().unwrap_or_else(|_| {
+                println!("{}", USAGE);
+                exit(1);
+            })
+        });
+        const ALLOWED_VERBOSE_MODES: &[&str] = &["verbose", "verbose_slow"];
+        let verbose_mode = args.get(3).inspect(|s| {
+            if !ALLOWED_VERBOSE_MODES.iter().any(|m| s == m) {
+                println!("{}", USAGE);
+                exit(1);
             }
-            Op::In => {
-                if let Some(c) = input.pop() {
-                    mem.set(c as u8);
-                }
-            }
-            Op::Open if mem.read() == 0 => {
-                let mut n_brackets = 0;
-                op_list.pos += 1;
+        });
 
-                while op_list.get() != Op::Close || n_brackets != 0 {
-                    if op_list.get() == Op::Open {
-                        n_brackets += 1;
-                    } else if op_list.get() == Op::Close {
-                        n_brackets -= 1;
+        const ALLOWED_CHARS: &[char] = &['<', '>', '+', '-', '.', ',', '[', ']'];
+        let program = program
+            .lines()
+            .filter(|line| !line.starts_with("//"))
+            .flat_map(|line| line.chars())
+            .filter(|c| ALLOWED_CHARS.contains(c))
+            .collect::<String>();
+
+        let mut op_list = OpList::new(&program);
+        let mut mem = Memory::new();
+
+        let mut total_ops = 0;
+
+        let mut input = if program.contains(',') {
+            let mut input = String::new();
+            let _ = stdin().read_line(&mut input);
+            input.chars().rev().collect::<String>()
+        } else {
+            String::new()
+        };
+
+        let mut output = String::new();
+
+        let start = Instant::now();
+        while op_list.pos < op_list.ops.len()
+            && operation_limit
+                .map(|limit| total_ops < limit)
+                .unwrap_or(true)
+        {
+            if let Some(_) = verbose_mode {
+                op_list.display();
+                mem.display();
+            }
+
+            let op = op_list.get();
+            match op {
+                Op::Left => mem.left(),
+                Op::Right => mem.right(),
+                Op::Incr => mem.incr(),
+                Op::Decr => mem.decr(),
+                Op::Out => {
+                    output.push(mem.read() as char);
+                    if let Some(_) = verbose_mode {
+                        println!("{}", mem.read());
+                        println!("out: {}", output)
                     }
+                }
+                Op::In => {
+                    if let Some(c) = input.pop() {
+                        mem.set(c as u8);
+                    }
+                }
+                Op::Open if mem.read() == 0 => {
+                    let mut n_brackets = 0;
                     op_list.pos += 1;
-                }
-            }
-            Op::Close if mem.read() != 0 => {
-                let mut n_brackets = 0;
-                op_list.pos -= 1;
 
-                while op_list.get() != Op::Open || n_brackets != 0 {
-                    if op_list.get() == Op::Close {
-                        n_brackets += 1;
-                    } else if op_list.get() == Op::Open {
-                        n_brackets -= 1;
+                    while op_list.get() != Op::Close || n_brackets != 0 {
+                        if op_list.get() == Op::Open {
+                            n_brackets += 1;
+                        } else if op_list.get() == Op::Close {
+                            n_brackets -= 1;
+                        }
+                        op_list.pos += 1;
                     }
-                    op_list.pos -= 1;
                 }
+                Op::Close if mem.read() != 0 => {
+                    let mut n_brackets = 0;
+                    op_list.pos -= 1;
+
+                    while op_list.get() != Op::Open || n_brackets != 0 {
+                        if op_list.get() == Op::Close {
+                            n_brackets += 1;
+                        } else if op_list.get() == Op::Open {
+                            n_brackets -= 1;
+                        }
+                        op_list.pos -= 1;
+                    }
+                }
+                _ => {}
             }
-            _ => {}
+
+            op_list.pos += 1;
+            total_ops += 1;
+
+            if let Some(m) = verbose_mode {
+                if m == "verbose_slow" {
+                    thread::sleep(Duration::from_millis(100));
+                }
+                println!()
+            }
         }
 
-        op_list.pos += 1;
-        total_ops += 1;
-
-        if PRINT_STEPS {
-            println!()
+        println!(
+            "performed {} operations in {:.1}ms",
+            total_ops,
+            start.elapsed().as_secs_f32() * 1000.
+        );
+        if !output.is_empty() {
+            println!("output:\n{}", output);
         }
-    }
-
-    println!(
-        "performed {} operations in {:.1}ms",
-        total_ops,
-        start.elapsed().as_secs_f32() * 1000.
-    );
-    if !output.is_empty() {
-        println!("output:\n{}", output);
-    }
+    } else {
+        println!("{}", USAGE);
+    };
 }
 
-struct Memory<const C: usize> {
+struct Memory {
     ptr: usize,
-    data: [u8; C],
+    data: Vec<u8>,
 }
 
-impl<const C: usize> Memory<C> {
+impl Memory {
+    const DEFAULT_MEMORY_CAPACITY: usize = 65536;
+
     fn new() -> Self {
         Memory {
             ptr: 0,
-            data: [0; C],
+            data: vec![0; Self::DEFAULT_MEMORY_CAPACITY],
         }
     }
 
@@ -133,7 +170,10 @@ impl<const C: usize> Memory<C> {
         self.ptr -= 1;
     }
     fn right(&mut self) {
-        assert!(self.ptr < C, "Pointer out of bounds (right)");
+        if self.ptr >= self.data.len() {
+            self.data
+                .extend((0..Self::DEFAULT_MEMORY_CAPACITY).map(|_| 0));
+        }
         self.ptr += 1;
     }
     fn incr(&mut self) {
@@ -144,15 +184,37 @@ impl<const C: usize> Memory<C> {
     }
 
     fn display(&self) {
+        const CHUNK_SIZE: usize = 16;
+        const CHUNKS_DISPLAYED: usize = 4;
+
+        let chunk_ptr = self.ptr - self.ptr % CHUNK_SIZE;
+        let start = chunk_ptr.saturating_sub(2 * CHUNK_SIZE);
+        let end = start.saturating_add(CHUNKS_DISPLAYED * CHUNK_SIZE);
+
         println!(
             "mem:{}",
-            self.data
-                .chunks(16)
-                .map(|chunk| {
+            self.data[start..end]
+                .chunks(CHUNK_SIZE)
+                .enumerate()
+                .map(|(chunk_i, chunk)| {
+                    let is_current_chunk = start + chunk_i * CHUNK_SIZE == chunk_ptr;
+
                     "\n".to_string()
+                        + &if is_current_chunk {
+                            format!("{} |", format!("{:5}", start + chunk_i * CHUNK_SIZE).red())
+                        } else {
+                            format!("{:5} |", start + chunk_i * CHUNK_SIZE)
+                        }
                         + &chunk
                             .iter()
-                            .map(|v| " ".to_string() + &format!("{:3}", v))
+                            .enumerate()
+                            .map(|(i, v)| {
+                                if is_current_chunk && i == self.ptr % CHUNK_SIZE {
+                                    format!(" {}", format!("{:3}", v).red())
+                                } else {
+                                    format!(" {:3}", v)
+                                }
+                            })
                             .collect::<String>()
                 })
                 .collect::<String>()
