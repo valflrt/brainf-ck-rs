@@ -1,45 +1,88 @@
+mod cli;
+
 use std::{
-    fmt::Write,
+    fmt::{Debug, Write},
     fs,
     io::stdin,
-    process::exit,
     thread,
     time::{Duration, Instant},
 };
 
 use colored::Colorize;
 
-fn main() {
-    const USAGE: &str = "Usage: brainf-ck-rs [program_path] <operation_limit> <mode>
+enum ErrorKind {
+    ParseOptionParam(&'static str, &'static str),
+    MissingOptionParam(&'static str),
+}
 
-[program path] (string): the path of the program to execute
-<operation_limit> (int): the maximum number of operations (infinite if not set)
-<mode> (\"verbose\" | \"verbose_slow\"): the execution mode (default mode if not set)
+impl Debug for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorKind::ParseOptionParam(option_name, param_type) => {
+                writeln!(f, "failed to parse `{}` ({})", option_name, param_type)
+            }
+            ErrorKind::MissingOptionParam(option_name) => {
+                writeln!(f, "option `{}` requires parameter", option_name)
+            }
+        }
+    }
+}
+
+fn main() -> Result<(), ErrorKind> {
+    const USAGE: &str = "Usage: brainf-ck-rs [program_path] <options>
+
+Arguments:
+    [program path]          The path of the program to execute
+
+Options:
+    --max-steps <steps>     Maximum number of steps before terminating,
+                            useful when the program doesn't terminate
+                            on its own
+    --show-preview          Shows a preview of the operations performed
+                            and of memory while executing
+    --delay <delay>         Delay (in ms) between each step
 
 Examples:
-    brainf-ck-rs helloworld.b 1000
-    brainf-ck-rs e.b 100000 verbose_slow";
+    brainf-ck-rs helloworld.b --max-steps 1000
+    brainf-ck-rs e.b --max-steps 1000000 --preview --delay 50";
 
-    let args = std::env::args().collect::<Vec<_>>();
+    let (args, options) = cli::parse();
 
     if let Some(path) = args.get(1) {
-        let program = fs::read_to_string(path).expect("Failed to read program file");
-        let operation_limit = args.get(2).map(|s| {
-            s.parse::<usize>().unwrap_or_else(|_| {
-                println!("{}", USAGE);
-                exit(1);
+        let program_string = fs::read_to_string(path).expect("Failed to read program file");
+        let max_steps = options
+            .get("max-steps")
+            .map(|param| {
+                param
+                    .as_ref()
+                    .ok_or(ErrorKind::MissingOptionParam("max-steps"))
+                    .and_then(|p| {
+                        p.parse::<usize>()
+                            .map_err(|_| ErrorKind::ParseOptionParam("max-steps", "int"))
+                    })
             })
-        });
-        const ALLOWED_VERBOSE_MODES: &[&str] = &["verbose", "verbose_slow"];
-        let verbose_mode = args.get(3).inspect(|s| {
-            if !ALLOWED_VERBOSE_MODES.iter().any(|m| s == m) {
-                println!("{}", USAGE);
-                exit(1);
-            }
-        });
+            .transpose()?;
+        let show_preview = options.get("preview").is_some();
+        let delay = options
+            .get("delay")
+            .map(|param| {
+                param
+                    .as_ref()
+                    .ok_or(ErrorKind::MissingOptionParam("delay"))
+                    .and_then(|p| {
+                        p.parse::<u64>()
+                            .map(|dt| Duration::from_millis(dt))
+                            .map_err(|_| ErrorKind::ParseOptionParam("delay", "int"))
+                    })
+            })
+            .transpose()?;
+
+        if delay.is_some() && !show_preview {
+            println!("Warning: setting a `delay` without the preview enabled will just slow down the computation...");
+        }
 
         const ALLOWED_CHARS: &[char] = &['<', '>', '+', '-', '.', ',', '[', ']'];
-        let program = program
+        let program = program_string
             .lines()
             .filter(|line| !line.starts_with("//"))
             .flat_map(|line| line.chars())
@@ -63,11 +106,9 @@ Examples:
 
         let start = Instant::now();
         while op_list.pos < op_list.ops.len()
-            && operation_limit
-                .map(|limit| total_ops < limit)
-                .unwrap_or(true)
+            && max_steps.map(|limit| total_ops < limit).unwrap_or(true)
         {
-            if let Some(_) = verbose_mode {
+            if show_preview {
                 op_list.display();
                 mem.display();
             }
@@ -80,7 +121,7 @@ Examples:
                 Op::Decr => mem.decr(),
                 Op::Out => {
                     output.push(mem.read() as char);
-                    if let Some(_) = verbose_mode {
+                    if show_preview {
                         println!("{}", mem.read());
                         println!("out: {}", output)
                     }
@@ -122,10 +163,10 @@ Examples:
             op_list.pos += 1;
             total_ops += 1;
 
-            if let Some(m) = verbose_mode {
-                if m == "verbose_slow" {
-                    thread::sleep(Duration::from_millis(100));
-                }
+            if let Some(delay) = delay {
+                thread::sleep(delay);
+            }
+            if show_preview {
                 println!()
             }
         }
@@ -141,6 +182,8 @@ Examples:
     } else {
         println!("{}", USAGE);
     };
+
+    Ok(())
 }
 
 struct Memory {

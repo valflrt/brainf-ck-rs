@@ -3,15 +3,22 @@
 It has a cool visualizer tho.
 
 ```
-Usage: brainf-ck-rs [program_path] <operation_limit> <mode>
+Usage: brainf-ck-rs [program_path] <options>
 
-[program path] (string): the path of the program to execute
-<operation_limit> (int): the maximum number of operations (infinite if not set)
-<mode> ("verbose" | "verbose_slow"): the execution mode (normal if not set)
+Arguments:
+    [program path]          The path of the program to execute
+
+Options:
+    --max-steps <steps>     Maximum number of steps before terminating,
+                            useful when the program doesn't terminate
+                            on its own
+    --show-preview          Shows a preview of the operations performed
+                            and of memory while executing
+    --delay <delay>         Delay (in ms) between each step
 
 Examples:
-    brainf-ck-rs helloworld.b 1000
-    brainf-ck-rs e.b 100000 verbose_slow
+    brainf-ck-rs helloworld.b --max-steps 1000
+    brainf-ck-rs e.b --max-steps 1000000 --preview --delay 50
 ```
 
 ## Computing e
@@ -38,8 +45,4 @@ output:
 
 Here is a preview of what the visualizer looks like:
 
-![verbose_slow](./img/verbose.gif)
-
-You can even make it slower to see what operations are performed and the position of the pointer in the memory:
-
-![verbose_slow](./img/verbose_slow.gif)
+![verbose_slow](./img/preview.gif)
