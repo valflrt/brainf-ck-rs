@@ -33,7 +33,7 @@ output:
 2.718281828459045235360287471352662497
 ```
 
-Here with 2943 decimals:
+Here with 2943 significant digits:
 
 ```
 $ cargo run -r -- examples/e.b 10000000000
